@@ -1,33 +1,51 @@
 #include <stdio.h>
 #include <string.h>
-#include <curl/curl.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <arpa/inet.h>
 
-void log_error(CURLcode result, char *errbuf) {
-  size_t len = strlen(errbuf);
-  fprintf(stderr, "\nlibcurl: (%d) ", result);
+int main(int argc, char *argv[]) {
+  int status;
+  struct addrinfo req;
+  struct addrinfo *res, *p;
+  char ipstr[INET6_ADDRSTRLEN];
 
-  if (len) fprintf(stderr, "%s%s", errbuf, ((errbuf[len - 1] != '\n') ? "\n" : ""));
-  else fprintf(stderr, "%s\n", curl_easy_strerror(result));
-}
-
-int main(void) {
-  CURL *curl = curl_easy_init();
-  if (!curl) {
-    fprintf(stderr, "failed to init curl\n");
+  if (argc != 2) {
+    fprintf(stderr, "usage: showip hostname\n");
     return 1;
   }
 
-  CURLcode result;
-  char errbuf[CURL_ERROR_SIZE] = {0};
+  memset(&req, 0, sizeof req);
+  req.ai_family = AF_UNSPEC;
+  req.ai_socktype = SOCK_STREAM;
+  req.ai_flags = AI_PASSIVE;
 
-  curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
-  curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
-
-  result = curl_easy_perform(curl);
-  if (result != CURLE_OK) {
-    log_error(result, errbuf);
+  if ((status = getaddrinfo(argv[1], NULL, &req, &res)) != 0) {
+    fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
+    return 1;
   }
 
-  curl_easy_cleanup(curl);
-  return (result == CURLE_OK) ? 0 : 1;
+  for (p = res; p != NULL; p = p->ai_next) {
+    char *ipver;
+    void *addr;
+    struct sockaddr_in *ipv4;
+    struct sockaddr_in6 *ipv6;
+    
+    if (p->ai_family == AF_INET) {
+      ipv4 = (struct sockaddr_in *)p->ai_addr;
+      addr = &(ipv4->sin_addr);
+      ipver = "IPv4";
+    } else {
+      ipv6 = (struct sockaddr_in6 *)p->ai_addr;
+      addr = &(ipv6->sin6_addr);
+      ipver = "IPv6";
+    }
+
+    inet_ntop(p->ai_family, addr, ipstr, sizeof ipstr);
+    printf(" %s: %s\n", ipver, ipstr);
+  }
+
+  freeaddrinfo(res);
+  return 0;
 }
