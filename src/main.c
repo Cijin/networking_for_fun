@@ -4,9 +4,10 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <errno.h>
 
 int main(int argc, char *argv[]) {
-  int status;
+  int status, s;
   struct addrinfo req;
   struct addrinfo *res, *p;
   char ipstr[INET6_ADDRSTRLEN];
@@ -19,7 +20,6 @@ int main(int argc, char *argv[]) {
   memset(&req, 0, sizeof req);
   req.ai_family = AF_UNSPEC;
   req.ai_socktype = SOCK_STREAM;
-  req.ai_flags = AI_PASSIVE;
 
   if ((status = getaddrinfo(argv[1], NULL, &req, &res)) != 0) {
     fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(status));
@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
   }
 
   printf("IP addresses for %s:\n", argv[1]);
-  for (p = res; p != NULL; p = p->ai_next) {
+  for (p = res;p != NULL;p = p->ai_next) {
     char *ipver;
     void *addr;
     struct sockaddr_in *ipv4;
@@ -45,6 +45,10 @@ int main(int argc, char *argv[]) {
 
     inet_ntop(p->ai_family, addr, ipstr, sizeof ipstr);
     printf(" %s: %s\n", ipver, ipstr);
+  }
+
+  if ((s = socket(res->ai_family, res->ai_socktype, res->ai_protocol)) == -1) {
+    printf("failed to get socket: %s\n", strerror(errno));
   }
 
   freeaddrinfo(res);
